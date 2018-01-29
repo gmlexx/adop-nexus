@@ -5,19 +5,19 @@ echo "Starting Nexus."
 echo "$(date) - LDAP Enabled: ${LDAP_ENABLED}"
 
 # Copy config files.
-mkdir -p ${NEXUS_HOME}conf
+mkdir -p ${NEXUS_HOME}/etc
 
 # Nexus configuration is split into two catagories -
 # * Managed : Configuration which is updated everytime container is restarted 
 # * Unmanaged : Configuration which is copied only if the files is missing.
-cp -R /resources/conf/managed/* ${NEXUS_HOME}conf
-cp -R -n /resources/conf/unmanaged/* ${NEXUS_HOME}conf
+cp -R /resources/conf/managed/* ${NEXUS_HOME}/etc
+cp -R -n /resources/conf/unmanaged/* ${NEXUS_HOME}/etc
 
 # Copy in custom logback configuration which prints application and access logs to stdout if environment variable is set to true
-cp /resources/conf/logback/logback.properties ${NEXUS_HOME}conf
+cp /resources/conf/logback/logback.properties ${NEXUS_HOME}/etc
 if [[ ${DEBUG_LOGGING} == true ]]
   then
-  cp /resources/conf/logback/logback-nexus.xml ${NEXUS_HOME}conf
+  cp /resources/conf/logback/logback-nexus.xml ${NEXUS_HOME}/etc
   cp /resources/conf/logback/logback-access.xml /opt/sonatype/nexus/conf/
 fi
 
@@ -36,7 +36,7 @@ fi
 if [ -n "${NEXUS_BASE_URL}" ]
        then
        # Add base url - requests timeout if incorrect
-       sed -i "s#<baseUrl>.*#<baseUrl>${NEXUS_BASE_URL}</baseUrl>#" ${NEXUS_HOME}/conf/nexus.xml
+       sed -i "s#<baseUrl>.*#<baseUrl>${NEXUS_BASE_URL}</baseUrl>#" ${NEXUS_HOME}/etc/nexus.xml
        echo "$(date) - Base URL: ${NEXUS_BASE_URL}"
 fi
 
@@ -51,14 +51,14 @@ if [[ -n "${NEXUS_PROXY_HOST}" ]] && [[ -n "${NEXUS_PROXY_PORT}" ]]
     \n      <proxyPort>${NEXUS_PROXY_PORT}</proxyPort>\
     \n    </httpProxySettings>\
     \n  </remoteProxySettings>"
-   sed -i "s+<remoteProxySettings />+${REMOTE_PROXY_SETTINGS}+" ${NEXUS_HOME}/conf/nexus.xml
+   sed -i "s+<remoteProxySettings />+${REMOTE_PROXY_SETTINGS}+" ${NEXUS_HOME}/etc/nexus.xml
 fi 
 
 # Update Central Repo configuration
 if [ ! -z "${NEXUS_CENTRAL_REPO_URL}" ]
         then
         echo "$(date) - Central Repository URL: ${NEXUS_CENTRAL_REPO_URL}"
-        sed -i "s#https://repo1.maven.org/maven2/#${NEXUS_CENTRAL_REPO_URL}#" ${NEXUS_HOME}/conf/nexus.xml
+        sed -i "s#https://repo1.maven.org/maven2/#${NEXUS_CENTRAL_REPO_URL}#" ${NEXUS_HOME}/etc/nexus.xml
 fi
 
 insert_role () {
@@ -71,11 +71,11 @@ insert_role () {
          \n        <role>nx-${ROLE_TYPE}</role>\
          \n      </roles>\
          \n    </role>"
-	if egrep "<id>${ROLE}</id>" ${NEXUS_HOME}/conf/security.xml >/dev/null ; then
+	if egrep "<id>${ROLE}</id>" ${NEXUS_HOME}/etc/security.xml >/dev/null ; then
 		echo "$(date) - Role ${ROLE} already exists, Skipping..."
 	else
 		echo "$(date) - ${ROLE_TYPE} role added: ${ROLE}"
-		sed -i "s+<!--insert-roles-->+<!--insert-roles-->\n    ${INSERT_ROLE}+" ${NEXUS_HOME}/conf/security.xml
+		sed -i "s+<!--insert-roles-->+<!--insert-roles-->\n    ${INSERT_ROLE}+" ${NEXUS_HOME}/etc/security.xml
 	fi
 }
 
@@ -94,7 +94,7 @@ if [ "${LDAP_ENABLED}" = true ]
   # Delete default authentication realms (XMLauth..) from Nexus if LDAP auth is enabled
   # If you get locked out of nexus, restart nexus with LDAP_ENABLED=false.
   #   - To allow user role mapping need to allow xml authorization
-  sed -i "/XmlAuthenticatingRealm/d"  ${NEXUS_HOME}/conf/security-configuration.xml
+  sed -i "/XmlAuthenticatingRealm/d"  ${NEXUS_HOME}/etc/security-configuration.xml
   
   # Define the correct LDAP user and group mapping configurations
   LDAP_TYPE=${LDAP_TYPE:-openldap}
@@ -140,7 +140,7 @@ if [ "${LDAP_ENABLED}" = true ]
    ;;
   esac
  
-cat > ${NEXUS_HOME}/conf/ldap.xml <<- EOM
+cat > ${NEXUS_HOME}/etc/ldap.xml <<- EOM
 <?xml version="1.0" encoding="UTF-8"?>
 <ldapConfiguration>
   <version>2.8.0</version>
@@ -159,7 +159,7 @@ EOM
 
 else
     # Delete LDAP realm
-    sed -i "/LdapAuthenticatingRealm/d" ${NEXUS_HOME}/conf/security-configuration.xml
+    sed -i "/LdapAuthenticatingRealm/d" ${NEXUS_HOME}/etc/security-configuration.xml
 fi
  
 # chown the nexus home directory
@@ -167,9 +167,4 @@ chown nexus:nexus "${NEXUS_HOME}"
 chown -R nexus:nexus $(ls ${NEXUS_HOME} | awk -v NEXUS_HOME="${NEXUS_HOME}/" '{if($1 != "storage"){ print NEXUS_HOME$1 }}')
  
 # start nexus as the nexus user
-su -c "${JAVA_HOME}/bin/java \
--Dnexus-work=${SONATYPE_WORK} -Dnexus-webapp-context-path=${CONTEXT_PATH} \
--Xms${MIN_HEAP} -Xmx${MAX_HEAP} \
--cp 'conf/:lib/*' \
-${JAVA_OPTS} \
-org.sonatype.nexus.bootstrap.Launcher ${LAUNCHER_CONF}" -s /bin/bash nexus
+${SONATYPE_DIR}/start-nexus-repository-manager.sh

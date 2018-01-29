@@ -1,10 +1,9 @@
-FROM sonatype/nexus:2.14.5
+FROM sonatype/nexus3:3.7.1
 
 MAINTAINER Robert Northard, <robert.a.northard>
 
 ENV LDAP_ENABLED=true \
     CONTEXT_PATH=/nexus \
-    NEXUS_HOME=/sonatype-work/ \
     DEBUG_LOGGING=false \
     LDAP_SEARCH_BASE="" \
     LDAP_URL="" \
